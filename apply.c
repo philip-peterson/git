@@ -27,6 +27,7 @@
 #include "object-file.h"
 #include "parse-options.h"
 #include "path.h"
+#include "promise.h"
 #include "quote.h"
 #include "read-cache.h"
 #include "rerere.h"
@@ -36,7 +37,6 @@
 #include "symlinks.h"
 #include "wildmatch.h"
 #include "ws.h"
-#include "promise.h"
 
 struct gitdiff_data {
 	struct strbuf *root;
