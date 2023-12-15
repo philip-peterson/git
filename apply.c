@@ -3626,7 +3626,6 @@ static void try_threeway(struct apply_state *state,
 	struct object_id pre_oid, post_oid, our_oid;
 	struct strbuf buf = STRBUF_INIT;
 	size_t len;
-	int status;
 	char *img;
 	struct image tmp_image;
 
@@ -3696,7 +3695,7 @@ static void try_threeway(struct apply_state *state,
 		return;
 	}
 
-	if (status) {
+	if (three_way_merge_promise->result.success_result) {
 		patch->conflicted_threeway = 1;
 		if (patch->is_new)
 			oidclr(&patch->threeway_stage[0]);
@@ -3737,7 +3736,7 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 
 			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.
-				die(merge_promise->result.failure_result.message);
+				die("%s", merge_promise->result.failure_result.message);
 			}
 			maybe_error_early = 1;
 		}
@@ -3751,7 +3750,6 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 		/* Note: with --reject, apply_fragments() returns 0 */
 		if (patch->direct_to_threeway || apply_fragments(state, &image, patch) < 0)
 			return APPLY_ERR_GENERIC;
-		}
 	}
 
 	patch->result = image.buf;

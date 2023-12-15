@@ -47,7 +47,7 @@ void promise_resolve(struct promise_t *p, int status) {
     p->state = PROMISE_SUCCESS;
 }
 
-void promise_reject(struct promise_t *p, int status, char* fmt, ...) {
+void promise_reject(struct promise_t *p, int status, const char* fmt, ...) {
     if (p->state != PROMISE_UNRESOLVED) {
         BUG("promise was already resolved");
         return;
