@@ -3503,7 +3503,7 @@ static int load_preimage(struct apply_state *state,
 	return 0;
 }
 
-static void resolve_to(struct promise_t* promise, struct image *image, const struct object_id *result_id)
+static void resolve_to(struct image *image, const struct object_id *result_id, struct promise_t* promise)
 {
 	unsigned long size;
 	enum object_type type;
@@ -3538,10 +3538,10 @@ static void three_way_merge(struct apply_state *state,
 
 	/* resolve trivial cases first */
 	if (oideq(base, ours)) {
-		resolve_to(promise, image, theirs);
+		resolve_to(image, theirs, promise);
 		return;
 	} else if (oideq(base, theirs) || oideq(ours, theirs)) {
-		resolve_to(promise, image, ours);
+		resolve_to(image, ours, promise);
 		return;
 	}
 
