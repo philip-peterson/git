@@ -36,6 +36,7 @@
 #include "symlinks.h"
 #include "wildmatch.h"
 #include "ws.h"
+#include "promise.h"
 
 struct gitdiff_data {
 	struct strbuf *root;
@@ -3502,7 +3503,7 @@ static int load_preimage(struct apply_state *state,
 	return 0;
 }
 
-static int resolve_to(struct image *image, const struct object_id *result_id)
+static void resolve_to(struct promise_t* promise, struct image *image, const struct object_id *result_id)
 {
 	unsigned long size;
 	enum object_type type;
@@ -3511,29 +3512,38 @@ static int resolve_to(struct image *image, const struct object_id *result_id)
 
 	image->buf = repo_read_object_file(the_repository, result_id, &type,
 					   &size);
-	if (!image->buf || type != OBJ_BLOB)
-		die("unable to read blob object %s", oid_to_hex(result_id));
+	if (!image->buf || type != OBJ_BLOB) {
+		// TODO this message does not live long enough
+		promise_reject(promise, APPLY_ERR_FATAL, "unable to read blob object %s", oid_to_hex(result_id));
+		return;
+	}
 	image->len = size;
 
-	return 0;
+	promise_resolve(promise, 0);
 }
 
-static int three_way_merge(struct apply_state *state,
+
+
+static void three_way_merge(struct apply_state *state,
 			   struct image *image,
 			   char *path,
 			   const struct object_id *base,
 			   const struct object_id *ours,
-			   const struct object_id *theirs)
+			   const struct object_id *theirs,
+			   struct promise_t *promise)
 {
 	mmfile_t base_file, our_file, their_file;
 	mmbuffer_t result = { NULL };
 	enum ll_merge_result status;
 
 	/* resolve trivial cases first */
-	if (oideq(base, ours))
-		return resolve_to(image, theirs);
-	else if (oideq(base, theirs) || oideq(ours, theirs))
-		return resolve_to(image, ours);
+	if (oideq(base, ours)) {
+		resolve_to(promise, image, theirs);
+		return;
+	} else if (oideq(base, theirs) || oideq(ours, theirs)) {
+		resolve_to(promise, image, ours);
+		return;
+	}
 
 	read_mmblob(&base_file, base);
 	read_mmblob(&our_file, ours);
@@ -3552,13 +3562,14 @@ static int three_way_merge(struct apply_state *state,
 	free(their_file.ptr);
 	if (status < 0 || !result.ptr) {
 		free(result.ptr);
-		return -1;
+		promise_reject(promise, APPLY_ERR_GENERIC, "ll_merge failed");
+		return;
 	}
 	clear_image(image);
 	image->buf = result.ptr;
 	image->len = result.size;
 
-	return status;
+	promise_resolve(promise, status);
 }
 
 /*
@@ -3605,11 +3616,12 @@ static int load_current(struct apply_state *state,
 	return 0;
 }
 
-static int try_threeway(struct apply_state *state,
+static void try_threeway(struct apply_state *state,
 			struct image *image,
 			struct patch *patch,
 			struct stat *st,
-			const struct cache_entry *ce)
+			const struct cache_entry *ce,
+			struct promise_t *promise)
 {
 	struct object_id pre_oid, post_oid, our_oid;
 	struct strbuf buf = STRBUF_INIT;
@@ -3622,15 +3634,19 @@ static int try_threeway(struct apply_state *state,
 	if (patch->is_delete ||
 	    S_ISGITLINK(patch->old_mode) || S_ISGITLINK(patch->new_mode) ||
 	    (patch->is_new && !patch->direct_to_threeway) ||
-	    (patch->is_rename && !patch->lines_added && !patch->lines_deleted))
-		return -1;
+	    (patch->is_rename && !patch->lines_added && !patch->lines_deleted)) {
+		promise_reject(promise, APPLY_ERR_GENERIC, "");
+		return;
+	}
 
 	/* Preimage the patch was prepared for */
 	if (patch->is_new)
 		write_object_file("", 0, OBJ_BLOB, &pre_oid);
 	else if (repo_get_oid(the_repository, patch->old_oid_prefix, &pre_oid) ||
-		 read_blob_object(&buf, &pre_oid, patch->old_mode))
-		return error(_("repository lacks the necessary blob to perform 3-way merge."));
+		 read_blob_object(&buf, &pre_oid, patch->old_mode)) {
+		promise_reject(promise, APPLY_ERR_GENERIC, _("repository lacks the necessary blob to perform 3-way merge."));
+		return;
+	}
 
 	if (state->apply_verbosity > verbosity_silent && patch->direct_to_threeway)
 		fprintf(stderr, _("Performing three-way merge...\n"));
@@ -3640,7 +3656,8 @@ static int try_threeway(struct apply_state *state,
 	/* Apply the patch to get the post image */
 	if (apply_fragments(state, &tmp_image, patch) < 0) {
 		clear_image(&tmp_image);
-		return -1;
+		promise_reject(promise, APPLY_ERR_GENERIC, "");
+		return;
 	}
 	/* post_oid is theirs */
 	write_object_file(tmp_image.buf, tmp_image.len, OBJ_BLOB, &post_oid);
@@ -3648,25 +3665,35 @@ static int try_threeway(struct apply_state *state,
 
 	/* our_oid is ours */
 	if (patch->is_new) {
-		if (load_current(state, &tmp_image, patch))
-			return error(_("cannot read the current contents of '%s'"),
-				     patch->new_name);
+		if (load_current(state, &tmp_image, patch)) {
+			// TODO make sure to error these values
+			promise_reject(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"), patch->new_name);
+			return;
+		}
 	} else {
-		if (load_preimage(state, &tmp_image, patch, st, ce))
-			return error(_("cannot read the current contents of '%s'"),
+		if (load_preimage(state, &tmp_image, patch, st, ce)) {
+			promise_reject(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"),
 				     patch->old_name);
+			return;
+		}
 	}
 	write_object_file(tmp_image.buf, tmp_image.len, OBJ_BLOB, &our_oid);
 	clear_image(&tmp_image);
 
 	/* in-core three-way merge between post and our using pre as base */
-	status = three_way_merge(state, image, patch->new_name,
-				 &pre_oid, &our_oid, &post_oid);
-	if (status < 0) {
-		if (state->apply_verbosity > verbosity_silent)
-			fprintf(stderr,
-				_("Failed to perform three-way merge...\n"));
-		return status;
+	struct promise_t *three_way_merge_promise = create_promise();
+	three_way_merge(state, image, patch->new_name,
+				 &pre_oid, &our_oid, &post_oid, three_way_merge_promise);
+
+	if (three_way_merge_promise->state == PROMISE_FAILURE) {
+		assert(three_way_merge_promise->result.failure_result.status < 0);
+		if (state->apply_verbosity > verbosity_silent) {
+			fprintf(stderr, _("Failed to perform three-way merge...\n"));
+		}
+		// Forward on the error message from the three_way_merge promise to the outer promise
+		promise_reject(promise, three_way_merge_promise->result.failure_result.status,
+		       three_way_merge_promise->result.failure_result.message);
+		return;
 	}
 
 	if (status) {
@@ -3687,7 +3714,7 @@ static int try_threeway(struct apply_state *state,
 				_("Applied patch to '%s' cleanly.\n"),
 				patch->new_name);
 	}
-	return 0;
+	promise_resolve(promise, 0);
 }
 
 static int apply_data(struct apply_state *state, struct patch *patch,
@@ -3696,26 +3723,48 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 	struct image image;
 
 	if (load_preimage(state, &image, patch, st, ce) < 0)
-		return -1;
+		return APPLY_ERR_GENERIC;
 
-	if (!state->threeway || try_threeway(state, &image, patch, st, ce) < 0) {
+	int maybe_error_early = !state->threeway;
+
+	if (!maybe_error_early) {
+		struct promise_t *merge_promise = create_promise();
+		try_threeway(state, &image, patch, st, ce, merge_promise);
+		promise_assert_finished(merge_promise);
+
+		if (merge_promise->state == PROMISE_FAILURE) {
+			assert(merge_promise->result.failure_result.status < 0);	
+
+			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
+				// -10 indicates fatal error. Die early.
+				die(merge_promise->result.failure_result.message);
+			}
+			maybe_error_early = 1;
+		}
+	}
+
+	if (maybe_error_early) {
 		if (state->apply_verbosity > verbosity_silent &&
 		    state->threeway && !patch->direct_to_threeway)
 			fprintf(stderr, _("Falling back to direct application...\n"));
 
 		/* Note: with --reject, apply_fragments() returns 0 */
 		if (patch->direct_to_threeway || apply_fragments(state, &image, patch) < 0)
-			return -1;
+			return APPLY_ERR_GENERIC;
+		}
 	}
+
 	patch->result = image.buf;
 	patch->resultsize = image.len;
 	add_to_fn_table(state, patch);
 	free(image.line_allocated);
 
-	if (0 < patch->is_delete && patch->resultsize)
-		return error(_("removal patch leaves file contents"));
+	if (0 < patch->is_delete && patch->resultsize) {
+		error(_("removal patch leaves file contents"));
+		return APPLY_ERR_GENERIC;
+	}
 
-	return 0;
+	return APPLY_SUCCESS;
 }
 
 /*

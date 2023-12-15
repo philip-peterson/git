@@ -6,6 +6,12 @@
 #include "string-list.h"
 #include "strmap.h"
 
+#define APPLY_SUCCESS 0
+
+/* Error codes (must less than 0) */
+#define APPLY_ERR_GENERIC -1
+#define APPLY_ERR_FATAL -10
+
 struct repository;
 
 enum apply_ws_error_action {
