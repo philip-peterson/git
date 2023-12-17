@@ -3545,6 +3545,9 @@ static void three_way_merge(struct apply_state *state,
 		return;
 	}
 
+		promise_reject(promise, APPLY_ERR_GENERIC, "ll_merge failed");
+		return;
+
 	read_mmblob(&base_file, base);
 	read_mmblob(&our_file, ours);
 	read_mmblob(&their_file, theirs);
@@ -3629,6 +3632,8 @@ static void try_threeway(struct apply_state *state,
 	char *img;
 	struct image tmp_image;
 
+	fprintf(stderr, "check 1\n");
+
 	/* No point falling back to 3-way merge in these cases */
 	if (patch->is_delete ||
 	    S_ISGITLINK(patch->old_mode) || S_ISGITLINK(patch->new_mode) ||
@@ -3638,6 +3643,8 @@ static void try_threeway(struct apply_state *state,
 		return;
 	}
 
+	fprintf(stderr, "check 2\n");
+
 	/* Preimage the patch was prepared for */
 	if (patch->is_new)
 		write_object_file("", 0, OBJ_BLOB, &pre_oid);
@@ -3646,6 +3653,8 @@ static void try_threeway(struct apply_state *state,
 		promise_reject(promise, APPLY_ERR_GENERIC, _("repository lacks the necessary blob to perform 3-way merge."));
 		return;
 	}
+
+	fprintf(stderr, "about to perform?\n");
 
 	if (state->apply_verbosity > verbosity_silent && patch->direct_to_threeway)
 		fprintf(stderr, _("Performing three-way merge...\n"));
@@ -3681,6 +3690,7 @@ static void try_threeway(struct apply_state *state,
 
 	/* in-core three-way merge between post and our using pre as base */
 	struct promise_t *three_way_merge_promise = create_promise();
+	fprintf(stderr, "ok I got to three_way_merge\n");
 	three_way_merge(state, image, patch->new_name,
 				 &pre_oid, &our_oid, &post_oid, three_way_merge_promise);
 
@@ -3731,12 +3741,24 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 		try_threeway(state, &image, patch, st, ce, merge_promise);
 		promise_assert_finished(merge_promise);
 
+		// IF_PROMISE_FAILED(merge_promise, {
+		// 	if (status == APPLY_ERR_FATAL) {
+		// 		// -10 indicates fatal error. Die early.
+		// 		die("%s", message);
+		// 	} else {
+		// 		fprintf(stderr, "Failed to apply patch:\n%s\n", merge_promise->result.failure_result.message);
+		// 	}
+		// 	maybe_error_early = 1;	
+		// })
+
 		if (merge_promise->state == PROMISE_FAILURE) {
 			assert(merge_promise->result.failure_result.status < 0);	
 
 			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.
 				die("%s", merge_promise->result.failure_result.message);
+			} else {
+				fprintf(stderr, "Failed to apply patch:\n%s\n", merge_promise->result.failure_result.message);
 			}
 			maybe_error_early = 1;
 		}
