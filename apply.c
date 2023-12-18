@@ -3689,7 +3689,7 @@ static void try_threeway(struct apply_state *state,
 	clear_image(&tmp_image);
 
 	/* in-core three-way merge between post and our using pre as base */
-	struct promise_t *three_way_merge_promise = create_promise();
+	struct promise_t *three_way_merge_promise = promise_init();
 	fprintf(stderr, "ok I got to three_way_merge\n");
 	three_way_merge(state, image, patch->new_name,
 				 &pre_oid, &our_oid, &post_oid, three_way_merge_promise);
@@ -3737,7 +3737,7 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 	int maybe_error_early = !state->threeway;
 
 	if (!maybe_error_early) {
-		struct promise_t *merge_promise = create_promise();
+		struct promise_t *merge_promise = promise_init();
 		try_threeway(state, &image, patch, st, ce, merge_promise);
 		promise_assert_finished(merge_promise);
 
