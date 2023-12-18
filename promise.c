@@ -42,6 +42,8 @@ void promise_reject(struct promise_t *p, int status, const char* fmt, ...) {
 }
 
 struct promise_t *promise_init() {
+    // Promises are allocated on the heap, because they represent potentially long-running tasks,
+    // and a stack-allocated value might not live long enough.
 	struct promise_t *new_promise = xmalloc(sizeof(struct promise_t));
     new_promise->state = PROMISE_UNRESOLVED;
 
