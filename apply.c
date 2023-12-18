@@ -3544,8 +3544,6 @@ static void three_way_merge(struct apply_state *state,
 		return;
 	}
 
-		PROMISE_THROW(promise, APPLY_ERR_GENERIC, "ll_merge failed");
-
 	read_mmblob(&base_file, base);
 	read_mmblob(&our_file, ours);
 	read_mmblob(&their_file, theirs);
@@ -3727,16 +3725,6 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 		struct promise_t *merge_promise = promise_init();
 		try_threeway(state, &image, patch, st, ce, merge_promise);
 		promise_assert_finished(merge_promise);
-
-		// IF_PROMISE_FAILED(merge_promise, {
-		// 	if (status == APPLY_ERR_FATAL) {
-		// 		// -10 indicates fatal error. Die early.
-		// 		die("%s", message);
-		// 	} else {
-		// 		fprintf(stderr, "Failed to apply patch:\n%s\n", merge_promise->result.failure_result.message);
-		// 	}
-		// 	maybe_error_early = 1;	
-		// })
 
 		if (merge_promise->state == PROMISE_FAILURE) {
 			struct failure_result_t result = merge_promise->result.failure_result;
