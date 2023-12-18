@@ -3699,9 +3699,14 @@ static void try_threeway(struct apply_state *state,
 		if (state->apply_verbosity > verbosity_silent) {
 			fprintf(stderr, _("Failed to perform three-way merge...\n"));
 		}
+
+
+		char *three_way_error;
+		promise_copy_error(three_way_merge_promise, &three_way_error, NULL);
 		// Forward on the error message from the three_way_merge promise to the outer promise
 		promise_reject(promise, three_way_merge_promise->result.failure_result.status,
-		       three_way_merge_promise->result.failure_result.message);
+		       three_way_error);
+		free(three_way_error);
 		return;
 	}
 
@@ -3756,9 +3761,14 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 
 			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.
-				die("%s", merge_promise->result.failure_result.message);
+				char *message;
+				promise_copy_error(merge_promise, &message, NULL);
+				die("%s", message);
 			} else {
-				fprintf(stderr, "Failed to apply patch:\n%s\n", merge_promise->result.failure_result.message);
+				char* error_message;
+				promise_copy_error(merge_promise, &error_message, NULL);
+				fprintf(stderr, "Failed to apply patch!!!:\n%s\n", error_message);
+				free(error_message);
 			}
 			maybe_error_early = 1;
 		}

@@ -9,6 +9,12 @@ void promise_assert_finished(struct promise_t *p) {
     }
 }
 
+void promise_assert_failure(struct promise_t *p) {
+    if (p->state != PROMISE_FAILURE) {
+        BUG("expected promise to have been rejected");
+    }
+}
+
 void promise_resolve(struct promise_t *p, int status) {
     if (p->state != PROMISE_UNRESOLVED) {
         BUG("promise was already resolved/rejected");
@@ -25,11 +31,11 @@ void promise_reject(struct promise_t *p, int status, const char* fmt, ...) {
     }
     p->result.failure_result.status = status;
 
-    strbuf_init(failure_result.message, 0);
+    strbuf_init(&p->result.failure_result.message, 0);
 
     va_list args;
     va_start(args, fmt);
-    strbuf_addf(p->result.failure_result.message, fmt, args);
+    strbuf_addf(&p->result.failure_result.message, fmt, args);
     va_end(args);
 
     p->state = PROMISE_FAILURE;
@@ -48,25 +54,35 @@ struct promise_t *promise_init() {
 }
 
 /**
- * Performs a partial release of the promise, but if this function returns
- * a nonnegative value, an additional free() must be called on the error_message
- * buffer.
+ * Outputs an error message and size from a failed promise. The error message must be
+ * free()'ed by the caller. Calling this function is not allowed if the promise is not
+ * failed.
+ *
+ * Argument `size` may be omitted by passing in NULL.
+ *
+ * Note that although *error_message is null-terminated, its size may be larger
+ * than the terminated string, and its actual size is indicated by *size.
  */
-int promise_consume(struct promise_t *promise, char **error_message) {
-    int size = -1;
-    if (promise->state == PROMISE_FAILURE) {
-        *error_message = strbuf_detach(promise->result.failure_result.message, &size);
+void promise_copy_error(struct promise_t *p, char **error_message, size_t *size) {
+    promise_assert_failure(p);
+
+    size_t local_size;
+    *error_message = strbuf_detach(&p->result.failure_result.message, &local_size);
+    if (size != NULL) {
+        *size = local_size;
     }
-    free(promise);
-    return size;
+
+    // We are only doing a copy, not a consume, so we need to put the error message back
+    // the way we found it.
+    strbuf_add(&p->result.failure_result.message, *error_message, strlen(*error_message));
 }
 
 /**
  * Fully deallocates the promise as well as the error message, if any.
  */
-void promise_release(struct promise_t *promise) {
-    char *error_message;
-    if (promise_consume(promise, &error_message) >= 0) {
-        free(error_message);
+void promise_release(struct promise_t *p) {
+    if (p->state == PROMISE_FAILURE) {
+        strbuf_release(&p->result.failure_result.message);
     }
+    free(p);
 }

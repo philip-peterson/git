@@ -2,6 +2,7 @@
 #define PROMISE_H
 
 #include "git-compat-util.h"
+#include "strbuf.h"
 
 enum promise_state {
 	PROMISE_UNRESOLVED = 0,
@@ -15,7 +16,7 @@ typedef int success_result_t;
 
 struct failure_result_t {
     int status;
-    strbuf *message;
+    struct strbuf message;
 };
 
 struct promise_t {
@@ -38,8 +39,8 @@ void promise_reject(struct promise_t *p, int status, const char* fmt, ...);
 // Function to create a new promise
 struct promise_t *promise_init();
 
-// Partially deallocates the promise
-int promise_consume(struct promise_t *promise, char **error_message);
+// Copies the error out of a failed promise
+void promise_copy_error(struct promise_t *promise, char **error_message, size_t *size);
 
 // Fully deallocates the promise
 void promise_release(struct promise_t *promise);
