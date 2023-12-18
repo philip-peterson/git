@@ -3639,7 +3639,7 @@ static void try_threeway(struct apply_state *state,
 	if (patch->is_new)
 		write_object_file("", 0, OBJ_BLOB, &pre_oid);
 	else if (repo_get_oid(the_repository, patch->old_oid_prefix, &pre_oid) ||
-		 read_blob_object(&buf, &pre_oid, patch->old_mode)) {
+		read_blob_object(&buf, &pre_oid, patch->old_mode)) {
 		PROMISE_THROW(promise, APPLY_ERR_GENERIC, _("repository lacks the necessary blob to perform 3-way merge."));
 	}
 

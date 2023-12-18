@@ -8,7 +8,7 @@
 
 #define APPLY_SUCCESS 0
 
-/* Error codes (must less than 0) */
+/* Error codes (must be less than 0) */
 #define APPLY_ERR_GENERIC -1
 #define APPLY_ERR_FATAL -10
 

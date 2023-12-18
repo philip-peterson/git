@@ -1,7 +1,5 @@
 #!/bin/sh
 
-export PATH="/Users/ironmagma/Code/git:$PATH"
-
 test_description='git apply --3way'
 
 GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME=main
