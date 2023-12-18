@@ -51,12 +51,17 @@ void promise_release(struct promise_t *promise);
     die("%s", message); \
 } while (0)
 
+#define PROMISE_THROW(p, errcode, ...) do { \
+    promise_reject(p, errcode, __VA_ARGS__); \
+    return; \
+} while (0)
+
 #define USING_PROMISE_ERROR_START(p, m) do { \
     char* (m); \
     promise_copy_error((p), &(m), NULL);
 
 #define USING_PROMISE_ERROR_END(p, m) \
-    free((p)); \
+    free((m)); \
 } while (0)
 
 #endif

@@ -3514,8 +3514,7 @@ static void resolve_to(struct image *image, const struct object_id *result_id, s
 					   &size);
 	if (!image->buf || type != OBJ_BLOB) {
 		// TODO this message does not live long enough
-		promise_reject(promise, APPLY_ERR_FATAL, "unable to read blob object %s", oid_to_hex(result_id));
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_FATAL, "unable to read blob object %s", oid_to_hex(result_id));
 	}
 	image->len = size;
 
@@ -3545,8 +3544,7 @@ static void three_way_merge(struct apply_state *state,
 		return;
 	}
 
-		promise_reject(promise, APPLY_ERR_GENERIC, "ll_merge failed");
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_GENERIC, "ll_merge failed");
 
 	read_mmblob(&base_file, base);
 	read_mmblob(&our_file, ours);
@@ -3565,8 +3563,7 @@ static void three_way_merge(struct apply_state *state,
 	free(their_file.ptr);
 	if (status < 0 || !result.ptr) {
 		free(result.ptr);
-		promise_reject(promise, APPLY_ERR_GENERIC, "ll_merge failed");
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_GENERIC, "ll_merge failed");
 	}
 	clear_image(image);
 	image->buf = result.ptr;
@@ -3632,29 +3629,21 @@ static void try_threeway(struct apply_state *state,
 	char *img;
 	struct image tmp_image;
 
-	fprintf(stderr, "check 1\n");
-
 	/* No point falling back to 3-way merge in these cases */
 	if (patch->is_delete ||
 	    S_ISGITLINK(patch->old_mode) || S_ISGITLINK(patch->new_mode) ||
 	    (patch->is_new && !patch->direct_to_threeway) ||
 	    (patch->is_rename && !patch->lines_added && !patch->lines_deleted)) {
-		promise_reject(promise, APPLY_ERR_GENERIC, "");
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_GENERIC, "");
 	}
-
-	fprintf(stderr, "check 2\n");
 
 	/* Preimage the patch was prepared for */
 	if (patch->is_new)
 		write_object_file("", 0, OBJ_BLOB, &pre_oid);
 	else if (repo_get_oid(the_repository, patch->old_oid_prefix, &pre_oid) ||
 		 read_blob_object(&buf, &pre_oid, patch->old_mode)) {
-		promise_reject(promise, APPLY_ERR_GENERIC, _("repository lacks the necessary blob to perform 3-way merge."));
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_GENERIC, _("repository lacks the necessary blob to perform 3-way merge."));
 	}
-
-	fprintf(stderr, "about to perform?\n");
 
 	if (state->apply_verbosity > verbosity_silent && patch->direct_to_threeway)
 		fprintf(stderr, _("Performing three-way merge...\n"));
@@ -3664,8 +3653,7 @@ static void try_threeway(struct apply_state *state,
 	/* Apply the patch to get the post image */
 	if (apply_fragments(state, &tmp_image, patch) < 0) {
 		clear_image(&tmp_image);
-		promise_reject(promise, APPLY_ERR_GENERIC, "");
-		return;
+		PROMISE_THROW(promise, APPLY_ERR_GENERIC, "");
 	}
 	/* post_oid is theirs */
 	write_object_file(tmp_image.buf, tmp_image.len, OBJ_BLOB, &post_oid);
@@ -3674,15 +3662,14 @@ static void try_threeway(struct apply_state *state,
 	/* our_oid is ours */
 	if (patch->is_new) {
 		if (load_current(state, &tmp_image, patch)) {
-			// TODO make sure to error these values
-			promise_reject(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"), patch->new_name);
-			return;
+			// Reviewers: This functionality changed. The message would previously print regardless of the verbosity
+			// setting.
+			PROMISE_THROW(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"), patch->new_name);
 		}
 	} else {
 		if (load_preimage(state, &tmp_image, patch, st, ce)) {
-			promise_reject(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"),
+			PROMISE_THROW(promise, APPLY_ERR_GENERIC, _("cannot read the current contents of '%s'"),
 				     patch->old_name);
-			return;
 		}
 	}
 	write_object_file(tmp_image.buf, tmp_image.len, OBJ_BLOB, &our_oid);
@@ -3690,21 +3677,16 @@ static void try_threeway(struct apply_state *state,
 
 	/* in-core three-way merge between post and our using pre as base */
 	struct promise_t *three_way_merge_promise = promise_init();
-	fprintf(stderr, "ok I got to three_way_merge\n");
 	three_way_merge(state, image, patch->new_name,
 				 &pre_oid, &our_oid, &post_oid, three_way_merge_promise);
 
 	if (three_way_merge_promise->state == PROMISE_FAILURE) {
 		struct failure_result_t result = three_way_merge_promise->result.failure_result;
-
 		assert(result.status < 0);
-		if (state->apply_verbosity > verbosity_silent) {
-			fprintf(stderr, _("Failed to perform three-way merge...\n"));
-		}
 
 		USING_PROMISE_ERROR_START(three_way_merge_promise, error);
 			// Forward on the error message from the three_way_merge promise to the outer promise
-			promise_reject(promise, result.status, error);
+			promise_reject(promise, result.status, "%s", error);
 		USING_PROMISE_ERROR_END(three_way_merge_promise, error);
 
 		return;
@@ -3764,9 +3746,16 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 				// -10 indicates fatal error. Die early.
 				DIE_WITH_PROMISE(merge_promise);
 			} else {
-				USING_PROMISE_ERROR_START(merge_promise, error_message);
-				fprintf(stderr, "Failed to apply patch!\n	%s\n", error_message);
-				USING_PROMISE_ERROR_END(merge_promise, error_message);
+				if (state->apply_verbosity == verbosity_verbose) {
+					USING_PROMISE_ERROR_START(merge_promise, error_message);
+					fprintf(stderr, _("Failed to perform three-way merge...\n"));
+					if (strlen(error_message) > 0) {
+						fprintf(stderr, "\t%s\n", error_message);
+					}
+					USING_PROMISE_ERROR_END(merge_promise, error_message);
+				} else if (state->apply_verbosity > verbosity_silent) {
+					fprintf(stderr, _("Failed to perform three-way merge...\n"));
+				}
 			}
 			maybe_error_early = 1;
 		}
