@@ -3513,7 +3513,6 @@ static void resolve_to(struct image *image, const struct object_id *result_id, s
 	image->buf = repo_read_object_file(the_repository, result_id, &type,
 					   &size);
 	if (!image->buf || type != OBJ_BLOB) {
-		// TODO this message does not live long enough
 		PROMISE_THROW(promise, APPLY_ERR_FATAL, "unable to read blob object %s", oid_to_hex(result_id));
 	}
 	image->len = size;
@@ -3728,7 +3727,7 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 
 		if (merge_promise->state == PROMISE_FAILURE) {
 			struct failure_result_t result = merge_promise->result.failure_result;
-			assert(result.status < 0);	
+			assert(result.status < 0);
 
 			if (result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.

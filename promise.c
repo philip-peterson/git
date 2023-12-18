@@ -4,55 +4,55 @@
 #include "promise.h"
 
 void promise_assert_finished(struct promise_t *p) {
-    if (p->state == PROMISE_UNRESOLVED) {
-        BUG("expected promise to have been resolved/rejected");
-    }
+	if (p->state == PROMISE_UNRESOLVED) {
+		BUG("expected promise to have been resolved/rejected");
+	}
 }
 
 void promise_assert_failure(struct promise_t *p) {
-    if (p->state != PROMISE_FAILURE) {
-        BUG("expected promise to have been rejected");
-    }
+	if (p->state != PROMISE_FAILURE) {
+		BUG("expected promise to have been rejected");
+	}
 }
 
 void promise_resolve(struct promise_t *p, int status) {
-    if (p->state != PROMISE_UNRESOLVED) {
-        BUG("promise was already resolved/rejected");
-        return;
-    }
-    p->result.success_result = status;
-    p->state = PROMISE_SUCCESS;
+	if (p->state != PROMISE_UNRESOLVED) {
+		BUG("promise was already resolved/rejected");
+		return;
+	}
+	p->result.success_result = status;
+	p->state = PROMISE_SUCCESS;
 }
 
 void promise_reject(struct promise_t *p, int status, const char* fmt, ...) {
-    if (p->state != PROMISE_UNRESOLVED) {
-        BUG("promise was already resolved/rejected");
-        return;
-    }
-    p->result.failure_result.status = status;
+	if (p->state != PROMISE_UNRESOLVED) {
+		BUG("promise was already resolved/rejected");
+		return;
+	}
+	p->result.failure_result.status = status;
 
-    strbuf_init(&p->result.failure_result.message, 0);
+	strbuf_init(&p->result.failure_result.message, 0);
 
-    va_list args;
-    va_start(args, fmt);
-    strbuf_addf(&p->result.failure_result.message, fmt, args);
-    va_end(args);
+	va_list args;
+	va_start(args, fmt);
+	strbuf_addf(&p->result.failure_result.message, fmt, args);
+	va_end(args);
 
-    p->state = PROMISE_FAILURE;
+	p->state = PROMISE_FAILURE;
 }
 
 struct promise_t *promise_init() {
-    // Promises are allocated on the heap, because they represent potentially long-running tasks,
-    // and a stack-allocated value might not live long enough.
+	// Promises are allocated on the heap, because they represent potentially long-running tasks,
+	// and a stack-allocated value might not live long enough.
 	struct promise_t *new_promise = xmalloc(sizeof(struct promise_t));
-    new_promise->state = PROMISE_UNRESOLVED;
+	new_promise->state = PROMISE_UNRESOLVED;
 
-    struct failure_result_t failure_result;
-    failure_result.status = 0;
+	struct failure_result_t failure_result;
+	failure_result.status = 0;
 
-    new_promise->result.failure_result = failure_result;
+	new_promise->result.failure_result = failure_result;
 
-    return new_promise;
+	return new_promise;
 }
 
 /**
@@ -66,25 +66,25 @@ struct promise_t *promise_init() {
  * than the terminated string, and its actual size is indicated by *size.
  */
 void promise_copy_error(struct promise_t *p, char **error_message, size_t *size) {
-    promise_assert_failure(p);
+	promise_assert_failure(p);
 
-    size_t local_size;
-    *error_message = strbuf_detach(&p->result.failure_result.message, &local_size);
-    if (size != NULL) {
-        *size = local_size;
-    }
+	size_t local_size;
+	*error_message = strbuf_detach(&p->result.failure_result.message, &local_size);
+	if (size != NULL) {
+		*size = local_size;
+	}
 
-    // We are only doing a copy, not a consume, so we need to put the error message back
-    // the way we found it.
-    strbuf_add(&p->result.failure_result.message, *error_message, strlen(*error_message));
+	// We are only doing a copy, not a consume, so we need to put the error message back
+	// the way we found it.
+	strbuf_add(&p->result.failure_result.message, *error_message, strlen(*error_message));
 }
 
 /**
  * Fully deallocates the promise as well as the error message, if any.
  */
 void promise_release(struct promise_t *p) {
-    if (p->state == PROMISE_FAILURE) {
-        strbuf_release(&p->result.failure_result.message);
-    }
-    free(p);
+	if (p->state == PROMISE_FAILURE) {
+		strbuf_release(&p->result.failure_result.message);
+	}
+	free(p);
 }

@@ -15,16 +15,16 @@ typedef int success_result_t;
 #define PROMISE_MESSAGE_LEN 4096
 
 struct failure_result_t {
-    int status;
-    struct strbuf message;
+	int status;
+	struct strbuf message;
 };
 
 struct promise_t {
-    enum promise_state state;
-    union {
-        success_result_t success_result;
-        struct failure_result_t failure_result;
-    } result;
+	enum promise_state state;
+	union {
+		success_result_t success_result;
+		struct failure_result_t failure_result;
+	} result;
 };
 
 // Function to assert that a promise has been resolved
@@ -46,22 +46,22 @@ void promise_copy_error(struct promise_t *promise, char **error_message, size_t 
 void promise_release(struct promise_t *promise);
 
 #define DIE_WITH_PROMISE(p) do { \
-    char *message; \
-    promise_copy_error((p), &message, NULL); \
-    die("%s", message); \
+	char *message; \
+	promise_copy_error((p), &message, NULL); \
+	die("%s", message); \
 } while (0)
 
 #define PROMISE_THROW(p, errcode, ...) do { \
-    promise_reject(p, errcode, __VA_ARGS__); \
-    return; \
+	promise_reject(p, errcode, __VA_ARGS__); \
+	return; \
 } while (0)
 
 #define USING_PROMISE_ERROR_START(p, m) do { \
-    char* (m); \
-    promise_copy_error((p), &(m), NULL);
+	char* (m); \
+	promise_copy_error((p), &(m), NULL);
 
 #define USING_PROMISE_ERROR_END(p, m) \
-    free((m)); \
+	free((m)); \
 } while (0)
 
 #endif
