@@ -3761,14 +3761,11 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 
 			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.
-				char *message;
-				promise_copy_error(merge_promise, &message, NULL);
-				die("%s", message);
+				DIE_WITH_PROMISE(merge_promise);
 			} else {
-				char* error_message;
-				promise_copy_error(merge_promise, &error_message, NULL);
-				fprintf(stderr, "Failed to apply patch!!!:\n%s\n", error_message);
-				free(error_message);
+				USING_PROMISE_ERROR_START(error_message);
+				fprintf(stderr, "Failed to apply patch!\n	%s\n", error_message);
+				USING_PROMISE_ERROR_END(error_message);
 			}
 			maybe_error_early = 1;
 		}

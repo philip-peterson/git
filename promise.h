@@ -45,4 +45,18 @@ void promise_copy_error(struct promise_t *promise, char **error_message, size_t 
 // Fully deallocates the promise
 void promise_release(struct promise_t *promise);
 
+#define DIE_WITH_PROMISE(p) do { \
+    char *message; \
+    promise_copy_error((p), &message, NULL); \
+    die("%s", message); \
+} while (0)
+
+#define USING_PROMISE_ERROR_START(ident) do { \
+    char* ident; \
+    promise_copy_error(merge_promise, &ident, NULL);
+
+#define USING_PROMISE_ERROR_END(ident) \
+    free(ident); \
+} while (0)
+
 #endif
