@@ -3695,16 +3695,17 @@ static void try_threeway(struct apply_state *state,
 				 &pre_oid, &our_oid, &post_oid, three_way_merge_promise);
 
 	if (three_way_merge_promise->state == PROMISE_FAILURE) {
-		assert(three_way_merge_promise->result.failure_result.status < 0);
+		struct failure_result_t result = three_way_merge_promise->result.failure_result;
+
+		assert(result.status < 0);
 		if (state->apply_verbosity > verbosity_silent) {
 			fprintf(stderr, _("Failed to perform three-way merge...\n"));
 		}
 
-
 		char *three_way_error;
 		promise_copy_error(three_way_merge_promise, &three_way_error, NULL);
 		// Forward on the error message from the three_way_merge promise to the outer promise
-		promise_reject(promise, three_way_merge_promise->result.failure_result.status,
+		promise_reject(promise, result.status,
 		       three_way_error);
 		free(three_way_error);
 		return;
@@ -3757,9 +3758,10 @@ static int apply_data(struct apply_state *state, struct patch *patch,
 		// })
 
 		if (merge_promise->state == PROMISE_FAILURE) {
-			assert(merge_promise->result.failure_result.status < 0);	
+			struct failure_result_t result = merge_promise->result.failure_result;
+			assert(result.status < 0);	
 
-			if (merge_promise->result.failure_result.status == APPLY_ERR_FATAL) {
+			if (result.status == APPLY_ERR_FATAL) {
 				// -10 indicates fatal error. Die early.
 				DIE_WITH_PROMISE(merge_promise);
 			} else {
