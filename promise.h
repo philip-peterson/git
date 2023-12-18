@@ -51,12 +51,12 @@ void promise_release(struct promise_t *promise);
     die("%s", message); \
 } while (0)
 
-#define USING_PROMISE_ERROR_START(ident) do { \
-    char* ident; \
-    promise_copy_error(merge_promise, &ident, NULL);
+#define USING_PROMISE_ERROR_START(p, m) do { \
+    char* (m); \
+    promise_copy_error((p), &(m), NULL);
 
-#define USING_PROMISE_ERROR_END(ident) \
-    free(ident); \
+#define USING_PROMISE_ERROR_END(p, m) \
+    free((p)); \
 } while (0)
 
 #endif
